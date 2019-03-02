@@ -7,19 +7,19 @@ from fastapi import FastAPI
 
 app = app = FastAPI()
 
-BIN_LATEX = r"E:\CTEX\MiKTeX\miktex\bin\miktex-xetex.exe"
-BIN_PDF2SVG = r"C:\Users\jsjyh\Desktop\dist-64bits\pdf2svg.exe"
+BIN_LATEX = "xelatex"
+BIN_PDF2SVG = "pdf2svg"
 
 
 def render_svg(packages, content):
 
     compile_seq = {
         'compile_latex':
-        '%s -undump=xelatex -quiet "{name}.tex"' % BIN_LATEX,
+        '%s "{name}.tex"' % BIN_LATEX,
         'convert':
         '%s "{name}.pdf" "{name}.svg"' % BIN_PDF2SVG,
         'clean':
-        'del "{name}.aux" "{name}.log" "{name}.pdf" "{name}.tex" "{name}.svg"'
+        'rm "{name}.aux" "{name}.log" "{name}.pdf" "{name}.tex" "{name}.svg"'
     }
 
     template = r'''
