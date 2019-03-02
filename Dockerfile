@@ -10,4 +10,4 @@ apt install python3-pip -y &&\
 pip3 install -r requirements.txt &&\
 apt purge python3-pip -y && apt autoremove -y
 
-ENTRYPOINT [ "uvicorn", "main:app", "--host=0.0.0.0" ]
+ENTRYPOINT [ "uvicorn", "main:app", "--host=0.0.0.0", "--port=80" ]
