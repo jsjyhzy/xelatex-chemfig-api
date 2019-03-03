@@ -1,9 +1,10 @@
-from base64 import b64encode, urlsafe_b64decode
+from base64 import urlsafe_b64decode
 from os.path import basename
 from subprocess import run
 from tempfile import NamedTemporaryFile
 
 from fastapi import FastAPI
+from starlette.responses import Response
 
 app = app = FastAPI()
 
@@ -47,13 +48,11 @@ def unwrap(wrapped):
     return urlsafe_b64decode(wrapped).decode('utf8')
 
 
-def wrap(unwraped):
-    return b64encode(unwraped)
-
-
 @app.get('/svg')
-def latex2svg(env: str, content: str):
-    return {
-        'content': wrap(render_svg(unwrap(env), unwrap(content))),
-        'type': 'svg'
-    }
+async def latex2svg(env: str, content: str):
+    return Response(
+        content=render_svg(unwrap(env), unwrap(content)),
+        status_code=200,
+        headers=None,
+        media_type='image/svg+xml',
+    )
