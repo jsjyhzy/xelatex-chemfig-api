@@ -6,26 +6,17 @@ from tempfile import NamedTemporaryFile
 from fastapi import FastAPI, Query
 from starlette.responses import Response
 
-app = app = FastAPI()
+try:
+    from .utils import Template
+except ImportError:
+    from utils import Template
+
+app = FastAPI()
 
 BIN_LATEX = "xelatex"
 BIN_PDF2SVG = "pdf2svg"
 
-TEMPLATE = r'''
-\documentclass{standalone}
-%s
-\begin{document}
-%s
-\end{document}
-'''
-
-DEFAULT_PREAMBLE = b'''
-\usepackage{amsmath}
-\usepackage{amsfonts}
-\usepackage{amssymb}
-\usepackage{chemfig}'''
-
-EXAMPLE_LATEX_CODE = b'\chemfig{[:30](-[:-150]H_3CO)*6(-=(*5(--(=-[:40]*6(-=-N=-=))-(=O)-))-=-(-H_3CO)=)}'
+template = Template()
 
 
 def render_svg(packages, content):
@@ -36,7 +27,7 @@ def render_svg(packages, content):
         delete=False,
         encoding='utf8',
     )
-    fp.write(TEMPLATE % (packages, content))
+    fp.write(template.render(packages=packages, content=content))
     name = basename(fp.name).split('.')[0]
     fp.close()
 
@@ -58,18 +49,22 @@ def render_svg(packages, content):
 def unwrap(wrapped):
     return urlsafe_b64decode(wrapped).decode('utf8')
 
+def wrap(unwarpped):
+    return urlsafe_b64encode(unwarpped.encode('utf8'))
+
 
 @app.get('/svg', content_type=Response(media_type='image/svg+xml'))
 async def latex2svg(
         env: str = Query(
-            default=urlsafe_b64encode(DEFAULT_PREAMBLE),
+            default=wrap(template.default_preamble),
             title='Latex Docuement Preamble',
             description='URL-safe base64 encoded preamble snippet',
             regex='^[0-9A-Za-z_\-]+=*$'),
         content: str = Query(
-            default=urlsafe_b64encode(EXAMPLE_LATEX_CODE),
+            default=wrap(template.example_latex_code),
             title='Latex Code',
             description='URL-safe base64 encoded latex code',
             regex='^[0-9A-Za-z_\-]+=*$'),
 ):
     return render_svg(unwrap(env), unwrap(content))
+
