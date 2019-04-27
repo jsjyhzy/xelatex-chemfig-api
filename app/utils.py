@@ -8,8 +8,9 @@ class Template:
 
     def render(self, **kwargs):
         documentclass = self.documentclass(
-            doccls=kwargs.get('documentclass', None), )
-        preamble = self.preamble(packages=kwargs.get('packages', None), )
+            doccls=kwargs.get('doc_class', None), 
+            docopt=kwargs.get('doc_option', None))
+        preamble = self.preamble(preamble=kwargs.get('preamble', None), )
 
         content = kwargs.get('content')
 
@@ -21,18 +22,17 @@ class Template:
             '\\end{document}',
         ])
 
-    def documentclass(self, doccls):
+    def documentclass(self, doccls, docopt):
         if doccls is None:
             doccls = self.default_documentclass
-        return '\\documentclass{%s}' % doccls
+        if docopt is None:
+            docopt = self.default_documentoption
+        return '\\documentclass[%s]{%s}' % (docopt, doccls)
 
-    def preamble(self, packages):
-        if packages is None:
-            packages = self.default_preamble
-        usepackage = '\n'.join(
-            ['\\usepackage{%s}' % line for line in packages.split('\n')])
-
-        return usepackage
+    def preamble(self, preamble):
+        if preamble is None:
+            preamble = self.default_preamble
+        return preamble
 
     @property
     def default_preamble(self):
@@ -41,6 +41,10 @@ class Template:
     @property
     def default_documentclass(self):
         return self.config['options']['documentclass']
+
+    @property
+    def default_documentoption(self):
+        return self.config['options']['documentoption']
 
     @property
     def example_latex_code(self):

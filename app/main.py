@@ -19,7 +19,7 @@ BIN_PDF2SVG = "pdf2svg"
 template = Template()
 
 
-def render_svg(packages, content):
+def render_svg(**kwargs):
     fp = NamedTemporaryFile(
         mode='w+',
         dir='.',
@@ -27,7 +27,7 @@ def render_svg(packages, content):
         delete=False,
         encoding='utf8',
     )
-    fp.write(template.render(packages=packages, content=content))
+    fp.write(template.render(**kwargs))
     name = basename(fp.name).split('.')[0]
     fp.close()
 
@@ -49,13 +49,24 @@ def render_svg(packages, content):
 def unwrap(wrapped):
     return urlsafe_b64decode(wrapped).decode('utf8')
 
+
 def wrap(unwarpped):
     return urlsafe_b64encode(unwarpped.encode('utf8'))
 
 
 @app.get('/svg', content_type=Response(media_type='image/svg+xml'))
 async def latex2svg(
-        env: str = Query(
+        doc_class: str = Query(
+            default=wrap(template.default_documentclass),
+            title='Latex Docuement Class',
+            description='URL-safe base64 encoded preamble snippet',
+            regex='^[0-9A-Za-z_\-]+=*$'),
+        doc_option: str = Query(
+            default=wrap(template.default_documentoption),
+            title='Latex Docuement Class Option',
+            description='URL-safe base64 encoded preamble snippet',
+            regex='^[0-9A-Za-z_\-]+=*$'),
+        preamble: str = Query(
             default=wrap(template.default_preamble),
             title='Latex Docuement Preamble',
             description='URL-safe base64 encoded preamble snippet',
@@ -66,5 +77,6 @@ async def latex2svg(
             description='URL-safe base64 encoded latex code',
             regex='^[0-9A-Za-z_\-]+=*$'),
 ):
-    return render_svg(unwrap(env), unwrap(content))
+    return render_svg(**{key: unwrap(val) for key, val in locals().items()})
+
 
