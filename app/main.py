@@ -59,23 +59,19 @@ async def latex2svg(
         doc_class: str = Query(
             default=wrap(template.default_documentclass),
             title='Latex Docuement Class',
-            description='URL-safe base64 encoded preamble snippet',
-            regex='^[A-Za-z\d+/]+([A-Za-z\d+/][A-Za-z\d+/=]|==)$'),
+            description='URL-safe base64 encoded preamble snippet'),
         doc_option: str = Query(
             default=wrap(template.default_documentoption),
             title='Latex Docuement Class Option',
-            description='URL-safe base64 encoded preamble snippet',
-            regex='^[A-Za-z\d+/]+([A-Za-z\d+/][A-Za-z\d+/=]|==)$'),
+            description='URL-safe base64 encoded preamble snippet'),
         preamble: str = Query(
             default=wrap(template.default_preamble),
             title='Latex Docuement Preamble',
-            description='URL-safe base64 encoded preamble snippet',
-            regex='^[A-Za-z\d+/]+([A-Za-z\d+/][A-Za-z\d+/=]|==)$'),
+            description='URL-safe base64 encoded preamble snippet'),
         content: str = Query(
             default=wrap(template.example_latex_code),
             title='Latex Code',
-            description='URL-safe base64 encoded latex code',
-            regex='^[A-Za-z\d+/]+([A-Za-z\d+/][A-Za-z\d+/=]|==)$'),
+            description='URL-safe base64 encoded latex code'),
 ):
     return render_svg(**{key: unwrap(val) for key, val in locals().items()})
 
