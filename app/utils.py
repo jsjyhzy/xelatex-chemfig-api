@@ -8,7 +8,7 @@ class Template:
 
     def render(self, **kwargs):
         documentclass = self.documentclass(
-            doccls=kwargs.get('doc_class', None), 
+            doccls=kwargs.get('doc_class', None),
             docopt=kwargs.get('doc_option', None))
         preamble = self.preamble(preamble=kwargs.get('preamble', None), )
 
@@ -34,6 +34,17 @@ class Template:
             preamble = self.default_preamble
         return preamble
 
+    def latex_bin(self, **kwargs):
+        engine = kwargs.get('engine')
+        if engine.upper() == 'PDFLATEX':
+            return 'pdflatex'
+        if engine.upper() == 'LUALATEX':
+            return 'lualatex'
+        if engine.upper() == 'XELATEX':
+            return 'xelatex'
+
+        return 'pdflatex'
+
     @property
     def default_preamble(self):
         return self.config['options']['usepackage']
@@ -45,6 +56,10 @@ class Template:
     @property
     def default_documentoption(self):
         return self.config['options']['documentoption']
+
+    @property
+    def default_engine(self):
+        return self.config['options']['engine']
 
     @property
     def example_latex_code(self):

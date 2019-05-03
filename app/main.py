@@ -13,9 +13,6 @@ except ImportError:
 
 app = FastAPI()
 
-BIN_LATEX = "xelatex"
-BIN_PDF2SVG = "pdf2svg"
-
 template = Template()
 
 
@@ -31,9 +28,10 @@ def render_svg(**kwargs):
     name = basename(fp.name).split('.')[0]
     fp.close()
 
-    run(f'{BIN_LATEX} "{name}.tex"', shell=True)
-    run(f'{BIN_LATEX} "{name}.tex"', shell=True)
-    run(f'{BIN_PDF2SVG} "{name}.pdf" "{name}.svg"', shell=True)
+    bin_latex = template.latex_bin(**kwargs)
+    run(f'{bin_latex} "{name}.tex"', shell=True)
+    run(f'{bin_latex} "{name}.tex"', shell=True)
+    run(f'pdf2svg "{name}.pdf" "{name}.svg"', shell=True)
     with open(f'{name}.svg', 'rb') as fp:
         svg = fp.read()
     names = ' '.join(
@@ -60,11 +58,11 @@ async def latex2svg(
         doc_class: str = Query(
             default=wrap(template.default_documentclass),
             title='Latex Docuement Class',
-            description='URL-safe base64 encoded preamble snippet'),
+            description='URL-safe base64 encoded docuement type'),
         doc_option: str = Query(
             default=wrap(template.default_documentoption),
             title='Latex Docuement Class Option',
-            description='URL-safe base64 encoded preamble snippet'),
+            description='URL-safe base64 encoded docuement options'),
         preamble: str = Query(
             default=wrap(template.default_preamble),
             title='Latex Docuement Preamble',
@@ -73,7 +71,9 @@ async def latex2svg(
             default=wrap(template.example_latex_code),
             title='Latex Code',
             description='URL-safe base64 encoded latex code'),
+        engine: str = Query(
+            default=wrap(template.default_engine),
+            title='Latex Compiler',
+            description='URL-safe base64 encoded latex compiler name'),
 ):
     return render_svg(**{key: unwrap(val) for key, val in locals().items()})
-
-
