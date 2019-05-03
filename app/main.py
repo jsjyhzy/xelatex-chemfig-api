@@ -31,6 +31,7 @@ def render_svg(**kwargs):
     bin_latex = template.latex_bin(**kwargs)
     run(f'{bin_latex} "{name}.tex"', shell=True)
     run(f'{bin_latex} "{name}.tex"', shell=True)
+    run(f'{bin_latex} "{name}.tex"', shell=True)
     run(f'pdf2svg "{name}.pdf" "{name}.svg"', shell=True)
     with open(f'{name}.svg', 'rb') as fp:
         svg = fp.read()
