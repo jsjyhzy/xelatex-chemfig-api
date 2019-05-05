@@ -15,7 +15,10 @@ miktexsetup finish &&\
 initexmf --set-config-value [MPM]AutoInstall=1
 
 RUN mpm --install xecjk &&\
-mpm --install chemfig
+mpm --install chemfig &&\
+mpm --install standalone &&\
+mpm --install pgf &&\
+mpm --install varwidth
 
 ENV LC_ALL=C.UTF-8 LANG=C.UTF-8
 
