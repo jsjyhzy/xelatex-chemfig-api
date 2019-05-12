@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <!--- 来自https://gitee.com/slice30k/base64-js.git的base64编码 --->
+    <script src='base64.min.js'></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css?family=Roboto+Condensed|Ubuntu|Ubuntu+Mono');
+
+        .center {
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+            text-align: center;
+        }
+
+        table {
+            margin: auto;
+            font-family: 'Ubuntu', sans-serif;
+        }
+
+        textarea,
+        input {
+            font-family: 'Ubuntu Mono', monospace;
+        }
+
+        .right {
+            float: right;
+            padding: 0pt 5pt 0pt 0pt;
+        }
+
+        legend {
+            font-family: 'Roboto Condensed', sans-serif;
+        }
+
+        fieldset {
+            margin-left: auto;
+            margin-right: auto;
+            width: 80%;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <fieldset>
+        <legend>Compiled Result</legend>
+        <img id='target' src='' class='center'>
+    </fieldset>
+    <br>
+
+    <fieldset>
+        <legend>stderr</legend>
+    </fieldset>
+    <br>
+
+    <form>
+        <fieldset>
+            <legend>Configuration and Source code</legend>
+            <table>
+                <tr>
+                    <td class='right'>Docuement Options:</td>
+                    <td><input autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"
+                            id='doc-option' name='doc-option' size="35" value='varwidth,border={5pt 5pt 5pt 5pt}'></td>
+                </tr>
+                <tr>
+                    <td class='right'>Preamble:</td>
+                    <td><textarea autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"
+                            id="preamble" name="preamble" rows="4" cols="50">\usepackage{chemfig}</textarea></td>
+                </tr>
+                <tr>
+                    <td class='right'>Content:</td>
+                    <td><textarea autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"
+                            id="content" name="content" rows="10" cols="50">\chemfig{A-B}</textarea></td>
+                </tr>
+            </table>
+        </fieldset>
+        <br>
+
+        <table>
+            <tr>
+                <td class='right'><img id='loading' src='loading.gif' class="hidden"></td>
+                <td>
+                    <input type="button" onclick="update()" class="center" value="Compile"
+                        style="font-family: 'Roboto Condensed', sans-serif;">
+                </td>
+            </tr>
+        </table>
+    </form>
+
+    <script>
+        function update() {
+
+            fliploading()
+
+            const params = {
+                'doc_option': document.getElementById('doc-option').value,
+                'preamble': document.getElementById('preamble').value,
+                'content': document.getElementById('content').value
+            }
+
+            const baseURL = 'http://a.local.huzheyang.com:9600/svg'
+
+            const url = `${baseURL}?${ComposeParams(params)}`
+            console.log(url)
+
+            fetch(url)
+                .then(function (resp) {
+                    if (resp.status == 200) { return resp.text() }
+                    console.log(resp)
+                }).then(text => {
+                    document.getElementById('target').setAttribute('src', `data:image/svg+xml;base64,${BASE64.encode(text)}`)
+                }).then(end => { fliploading() })
+
+
+        }
+
+        function fliploading() {
+            var img = document.getElementById('loading');
+            img.classList.toggle('hidden');
+        }
+
+        function ComposeParams(obj) {
+            const params = []
+            Object.keys(obj).forEach((key) => {
+                let value = obj[key]
+                if (!(typeof value === 'undefined')) {
+                    params.push([key, BASE64.urlsafe_encode(value)].join('='))
+                }
+            })
+            return params.join('&')
+        }
+
+        window.onload = update
+
+    </script>
+</body>
+
+</html>

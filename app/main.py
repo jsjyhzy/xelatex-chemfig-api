@@ -4,7 +4,7 @@ from subprocess import run
 from tempfile import NamedTemporaryFile
 
 from fastapi import FastAPI, Query
-from starlette.responses import Response
+from starlette.responses import Response, HTMLResponse
 
 try:
     from .utils import Template
@@ -54,6 +54,11 @@ def wrap(unwarpped):
     return urlsafe_b64encode(unwarpped.encode('utf8'))
 
 
+@app.get('/', content_type=Response(media_type='text/html'))
+async def index():
+    return await assets('index.html')
+
+
 @app.get('/svg', content_type=Response(media_type='image/svg+xml'))
 async def latex2svg(
         doc_class: str = Query(
@@ -78,3 +83,21 @@ async def latex2svg(
             description='URL-safe base64 encoded latex compiler name'),
 ):
     return render_svg(**{key: unwrap(val) for key, val in locals().items()})
+
+
+@app.get('/{item}')
+async def assets(item: str):
+    try:
+        with open(f'page/{item}', 'rb') as fp:
+            if item.endswith('html'):
+                return HTMLResponse(
+                    content=fp.read(),
+                    status_code=200,
+                )
+            else:
+                return Response(
+                    content=fp.read(),
+                    status_code=200,
+                )
+    except FileNotFoundError:
+        return Response(status_code=404)
