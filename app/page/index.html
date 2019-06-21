@@ -4,9 +4,10 @@
 <head>
     <!--- Use CodeMirror from https://github.com/codemirror/CodeMirror --->
     <script src='src/codemirror.min.js'></script>
-    <link rel="stylesheet" type="text/css" href='src/codemirror.min.css'></link>
+    <link rel="stylesheet" type="text/css" href='src/codemirror.min.css'>
+    </link>
     <style>
-        @import url('//fonts.proxy.ustclug.org/css?family=Roboto+Condensed|Ubuntu|Ubuntu+Mono');
+        @import url('https://fonts.proxy.ustclug.org/css?family=Barlow+Condensed:300|Roboto+Condensed|Spectral|Ubuntu+Mono&display=swap');
 
         .center {
             display: block;
@@ -17,10 +18,12 @@
 
         table {
             margin: auto;
-            font-family: 'Ubuntu', sans-serif;
+            font-family: 'Spectral', serif;
         }
 
         textarea,
+        option,
+        select,
         input {
             font-family: 'Ubuntu Mono', monospace;
         }
@@ -37,9 +40,9 @@
         fieldset {
             margin-left: auto;
             margin-right: auto;
-            width: 590px;
+            width: 550px ! important;
         }
-        
+
         .wrapper {
             border: 1px solid #ccc;
         }
@@ -50,19 +53,20 @@
 
         p {
             margin-block-end: .5em;
+            font-family: 'Barlow Condensed', sans-serif
         }
 
         .CodeMirror {
             /* Set height, width, borders, and global font properties here */
-            font-family: monospace;
             height: 200px;
+            font-family: 'Barlow Condensed', sans-serif ! important;
         }
+
     </style>
 
 </head>
 
 <body>
-
     <fieldset>
         <legend>Compiled Result</legend>
         <img id='target' src='' class='center'>
@@ -73,6 +77,27 @@
         <fieldset>
             <legend>Configuration and Source code</legend>
             <table>
+                <tr>
+                    <td class='right'>Compile Engine:</td>
+                    <td><select name="engine" id="engine">
+                            <option value="pdflatex">pdflatex</option>
+                            <option value="xelatex">xelatex</option>
+                        </select></td>
+                </tr>
+                <tr>
+                    <td class='right'>Compile Target:</td>
+                    <td><select name="target" id="target">
+                            <option value="svg">svg</option>
+                            <option value="pdf">pdf</option>
+                    </select></td>
+                </tr>
+                <tr>
+                    <td class='right'>Compile</td>
+                    <td>
+                        <input type="number" name='compilepass' id='compilepass' value=2>
+                        time(es)
+                    </td>
+                </tr>
                 <tr>
                     <td class='right'>Docuement Options:</td>
                     <td><input autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false"
@@ -103,7 +128,7 @@
         </table>
     </form>
     <br>
-    
+
     <fieldset>
         <legend>fd1 & fd2</legend>
         <p>stdout</p>
@@ -118,15 +143,23 @@
             fliploading()
 
             const params = {
-                'doc_option': document.getElementById('doc-option').value,
-                'preamble': document.getElementById('preamble').value,
-                'content': document.getElementById('content').value
+                'doc_option': utoa(document.getElementById('doc-option').value),
+                'preamble': utoa(document.getElementById('preamble').value),
+                'content': utoa(document.getElementById('content').value),
+                'compilepass': document.getElementById('compilepass').value,
+                'engine': document.getElementById('engine').value,
+                'target': document.getElementById('target').value
             }
 
             postData('/', params)
-                .then((resp) => {
-                    if (resp.status == 200) { return resp.json() } else { console.error(resp.status); console.log(resp) }
-                }).then((jresp) => {
+                .then(response => {
+                if (response.status >= 200 && response.status < 300) {
+                    return Promise.resolve(response)
+                }
+                return response.json().then(err => {throw err;})
+                })
+                .then(response => response.json())
+                .then(jresp => {
                     document.getElementById('target').setAttribute('src', `data:${jresp['type']};base64,${jresp['attachment']}`);
                     document.getElementById('stdout').value = atou(jresp['stdout']);
                     document.getElementById('stderr').value = atou(jresp['stderr']);
@@ -137,10 +170,12 @@
                     var stderr = CodeMirror.fromTextArea(document.getElementById('stderr'), {
                         lineNumbers: true
                     });
-
-                }).then(end => { fliploading() },reason=>{console.error(reason)})
-
-
+                    fliploading();
+                })
+                .catch(err=>{
+                    alert(err['msg']);
+                    fliploading();
+                });
         }
 
         function fliploading() {
@@ -148,16 +183,6 @@
             img.classList.toggle('hidden');
         }
 
-        function ComposeParams(obj) {
-            const params = []
-            Object.keys(obj).forEach((key) => {
-                let value = obj[key]
-                if (!(typeof value === 'undefined')) {
-                    params.push([key, utoa(value)].join('='))
-                }
-            })
-            return params.join('&')
-        }
 
         function postData(url, data) {
             return fetch(url, {
@@ -178,9 +203,9 @@
             return decodeURIComponent(escape(window.atob(str)));
         }
 
-        function purge_codemirror(){
-            var elements = document.getElementsByClassName('CodeMirror cm-s-default');
-            while(elements.length > 0){
+        function purge_codemirror() {
+            var elements = document.getElementsByClassName('CodeMirror');
+            while (elements.length > 0) {
                 elements[0].parentNode.removeChild(elements[0]);
             }
         }

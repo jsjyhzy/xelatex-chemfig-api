@@ -169,3 +169,8 @@ class Template:
     @property
     def database_uri(self):
         return self.config['database']['uri']
+
+    def exceed_max_compilepass(self, request):
+        if not isinstance(request, int):
+            return True
+        return request >= int(self.config['options']['max_compile_pass'])

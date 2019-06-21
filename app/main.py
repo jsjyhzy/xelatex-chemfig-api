@@ -120,6 +120,8 @@ async def index():
 
 @app.post('/')
 async def render(req: RenderRequest, db: Session = Depends(get_db)):
+    if template.exceed_max_compilepass(req.compilepass):
+        return JSONResponse(status_code=400, content={"msg": "Too many compile pass"})
     cache = get_cache(db, req)
     if cache is None:
         db.add(Cache(request_hash=req.crc32, request=req.json()))
