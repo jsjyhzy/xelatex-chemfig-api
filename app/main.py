@@ -1,57 +1,116 @@
-from base64 import urlsafe_b64decode, urlsafe_b64encode
-from os.path import basename
-from subprocess import run
-from tempfile import NamedTemporaryFile
+from binascii import crc32
 
-from fastapi import FastAPI, Query
-from starlette.responses import Response, HTMLResponse
+from fastapi import Depends, FastAPI, Query
+from pydantic import BaseModel
+from sqlalchemy import (BIGINT, BLOB, BOOLEAN, INTEGER, TEXT, TIMESTAMP,
+                        Column, create_engine)
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.sql import func
+from starlette.middleware.gzip import GZipMiddleware
+from starlette.requests import Request
+from starlette.responses import HTMLResponse, JSONResponse, Response
 
 try:
-    from .utils import Template
+    from .utils import Template, wrap, unwrap, compiling, b2c, bcompress, bdecompress
 except ImportError:
-    from utils import Template
+    from utils import Template, wrap, unwrap, compiling, b2c, bcompress, bdecompress
 
-app = FastAPI()
 
 template = Template()
 
+engine = create_engine(template.database_uri,
+                       connect_args={"check_same_thread": False})
 
-def render_svg(**kwargs):
-    fp = NamedTemporaryFile(
-        mode='w+',
-        dir='.',
-        suffix='.tex',
-        delete=False,
-        encoding='utf8',
-    )
-    fp.write(template.render(**kwargs))
-    name = basename(fp.name).split('.')[0]
-    fp.close()
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-    bin_latex = template.latex_bin(**kwargs)
-    run(f'{bin_latex} "{name}.tex"', shell=True)
-    run(f'{bin_latex} "{name}.tex"', shell=True)
-    run(f'{bin_latex} "{name}.tex"', shell=True)
-    run(f'pdf2svg "{name}.pdf" "{name}.svg"', shell=True)
-    with open(f'{name}.svg', 'rb') as fp:
-        svg = fp.read()
-    names = ' '.join(
-        [f'"{name}.{ext}"' for ext in ['aux', 'log', 'pdf', 'tex', 'svg']])
-    run(f'rm {names}', shell=True)
-    return Response(
-        content=svg,
-        status_code=200,
-        headers=None,
-        media_type='image/svg+xml',
-    )
+Base = declarative_base()
 
 
-def unwrap(wrapped):
-    return urlsafe_b64decode(wrapped).decode('utf8')
+class Cache(Base):
+    __tablename__ = 'cache'
+    id = Column(INTEGER, primary_key=True)
+    request_hash = Column(BIGINT, index=True)
+    request = Column(TEXT)
+    stdout = Column(BLOB)
+    stderr = Column(BLOB)
+    attachment = Column(BLOB)
+    ctime = Column(TIMESTAMP, server_default=func.now())
+    hit = Column(INTEGER, default=0)
+    standby = Column(BOOLEAN, default=False)
+    failed = Column(BOOLEAN, default=False)
+
+    @property
+    def blob(self):
+        return bdecompress(self.stdout), bdecompress(self.stderr), bdecompress(self.attachment)
+
+    @blob.setter
+    def blob(self, val):
+        o, e, a = val
+        self.stdout = bcompress(o)
+        self.stderr = bcompress(e)
+        self.attachment = bcompress(a)
+
+    @property
+    def json(self):
+        o, e, a = self.blob
+        return {
+            "failed": self.failed,
+            "stdout": b2c(o),
+            "stderr": b2c(e),
+            "attachment": b2c(a),
+            "type": template.content_type_jsons(self.request)
+        }
 
 
-def wrap(unwarpped):
-    return urlsafe_b64encode(unwarpped.encode('utf8'))
+class RenderRequest(BaseModel):
+    doc_class: str = wrap(template.default_documentclass)
+    doc_option: str = wrap(template.default_documentoption)
+    preamble: str = wrap(template.default_preamble)
+    content: str = wrap(template.example_latex_code)
+    engine: str = template.default_engine
+    compilepass: int = 3
+    target: str = 'svg'
+
+    @property
+    def crc32(self):
+        return crc32(bytes(self.to_string(), encoding='utf8'))
+
+
+Base.metadata.create_all(bind=engine)
+
+
+# Utility
+def get_cache(db_session: Session, req: RenderRequest):
+    query = db_session.query(Cache)
+    query = query.filter(Cache.request_hash == req.crc32)
+    query = query.filter(Cache.request == req.json())
+    try:
+        return query.first()
+    except:
+        return None
+
+
+def get_cache_byid(db_session: Session, cache_id: int):
+    query = db_session.query(Cache)
+    query = query.filter(Cache.id == cache_id)
+    try:
+        ret = query.first()
+        ret.hit = ret.hit+1
+        db_session.merge(ret)
+        db_session.commit()
+        return query.first()
+    except:
+        return None
+
+
+# Dependency
+def get_db(request: Request):
+    return request.state.db
+
+
+app = FastAPI()
+app.add_middleware(GZipMiddleware)
 
 
 @app.get('/', content_type=Response(media_type='text/html'))
@@ -59,45 +118,71 @@ async def index():
     return await assets('index.html')
 
 
-@app.get('/svg', content_type=Response(media_type='image/svg+xml'))
-async def latex2svg(
-        doc_class: str = Query(
-            default=wrap(template.default_documentclass),
-            title='Latex Docuement Class',
-            description='URL-safe base64 encoded docuement type'),
-        doc_option: str = Query(
-            default=wrap(template.default_documentoption),
-            title='Latex Docuement Class Option',
-            description='URL-safe base64 encoded docuement options'),
-        preamble: str = Query(
-            default=wrap(template.default_preamble),
-            title='Latex Docuement Preamble',
-            description='URL-safe base64 encoded preamble snippet'),
-        content: str = Query(
-            default=wrap(template.example_latex_code),
-            title='Latex Code',
-            description='URL-safe base64 encoded latex code'),
-        engine: str = Query(
-            default=wrap(template.default_engine),
-            title='Latex Compiler',
-            description='URL-safe base64 encoded latex compiler name'),
-):
-    return render_svg(**{key: unwrap(val) for key, val in locals().items()})
+@app.post('/')
+async def render(req: RenderRequest, db: Session = Depends(get_db)):
+    cache = get_cache(db, req)
+    if cache is None:
+        db.add(Cache(request_hash=req.crc32, request=req.json()))
+        db.commit()
+        cache = get_cache(db, req)
+    return Response(status_code=302, headers={'Location': f'/by-id/{cache.id}'})
 
 
-@app.get('/{item}')
+@app.get('/by-id/{cache_id}')
+async def getresult(cache_id, db: Session = Depends(get_db)):
+    cache = get_cache_byid(db, cache_id)
+    if cache is None:
+        return Response(status_code=404)
+    if cache.standby or cache.failed is True:
+        return JSONResponse(content=cache.json)
+
+    context = template.render_jsons(cache.request)
+    exec_seq = template.assign_jsons(cache.id, cache.request)
+    stdout, stderr, attachment = compiling(exec_seq, context, cache.id)
+
+    cache.blob = (stdout, stderr, attachment)
+    if attachment is None:
+        cache.failed = True
+    else:
+        cache.standby = True
+    db.merge(cache)
+    db.commit()
+    cache = get_cache_byid(db, cache_id)
+    return JSONResponse(content=cache.json)
+
+
+@app.get('/purge')
+async def purge(db: Session = Depends(get_db)):
+    db.query(Cache).delete(synchronize_session=False)
+    db.commit()
+    return JSONResponse(content={"status": "ok"})
+
+
+@app.get('/src/{item}')
 async def assets(item: str):
     try:
         with open(f'page/{item}', 'rb') as fp:
             if item.endswith('html'):
-                return HTMLResponse(
-                    content=fp.read(),
-                    status_code=200,
-                )
+                media_type = "text/html"
+            elif item.endswith('css'):
+                media_type = "text/css"
             else:
-                return Response(
-                    content=fp.read(),
-                    status_code=200,
-                )
+                media_type = "text/plain"
+            return Response(
+                content=fp.read(),
+                status_code=200,
+                media_type=media_type
+            )
     except FileNotFoundError:
         return Response(status_code=404)
+
+
+@app.middleware("http")
+async def db_session_middleware(request: Request, call_next):
+    response = Response("Internal server error", status_code=500)
+    try:
+        request.state.db = SessionLocal()
+        response = await call_next(request)
+    finally:
+        request.state.db.close()
+    return response

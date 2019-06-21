@@ -2,10 +2,11 @@
 <html>
 
 <head>
-    <!--- 来自https://gitee.com/slice30k/base64-js.git的base64编码 --->
-    <script src='base64.min.js'></script>
+    <!--- Use CodeMirror from https://github.com/codemirror/CodeMirror --->
+    <script src='src/codemirror.min.js'></script>
+    <link rel="stylesheet" type="text/css" href='src/codemirror.min.css'></link>
     <style>
-        @import url('https://fonts.googleapis.com/css?family=Roboto+Condensed|Ubuntu|Ubuntu+Mono');
+        @import url('//fonts.proxy.ustclug.org/css?family=Roboto+Condensed|Ubuntu|Ubuntu+Mono');
 
         .center {
             display: block;
@@ -36,11 +37,25 @@
         fieldset {
             margin-left: auto;
             margin-right: auto;
-            width: 80%;
+            width: 590px;
+        }
+        
+        .wrapper {
+            border: 1px solid #ccc;
         }
 
         .hidden {
             display: none;
+        }
+
+        p {
+            margin-block-end: .5em;
+        }
+
+        .CodeMirror {
+            /* Set height, width, borders, and global font properties here */
+            font-family: monospace;
+            height: 200px;
         }
     </style>
 
@@ -51,11 +66,6 @@
     <fieldset>
         <legend>Compiled Result</legend>
         <img id='target' src='' class='center'>
-    </fieldset>
-    <br>
-
-    <fieldset>
-        <legend>stderr</legend>
     </fieldset>
     <br>
 
@@ -84,7 +94,7 @@
 
         <table>
             <tr>
-                <td class='right'><img id='loading' src='loading.gif' class="hidden"></td>
+                <td class='right'><img id='loading' src='src/loading.gif' class="hidden"></td>
                 <td>
                     <input type="button" onclick="update()" class="center" value="Compile"
                         style="font-family: 'Roboto Condensed', sans-serif;">
@@ -92,6 +102,15 @@
             </tr>
         </table>
     </form>
+    <br>
+    
+    <fieldset>
+        <legend>fd1 & fd2</legend>
+        <p>stdout</p>
+        <div class="wrapper"><textarea id="stdout" name="stdout" style="display: none;" readonly></textarea></div>
+        <p>stderr</p>
+        <div class="wrapper"><textarea id="stderr" name="stderr" style="display: none;" readonly></textarea></div>
+    </fieldset>
 
     <script>
         function update() {
@@ -104,18 +123,22 @@
                 'content': document.getElementById('content').value
             }
 
-            const baseURL = '/svg'
+            postData('/', params)
+                .then((resp) => {
+                    if (resp.status == 200) { return resp.json() } else { console.error(resp.status); console.log(resp) }
+                }).then((jresp) => {
+                    document.getElementById('target').setAttribute('src', `data:${jresp['type']};base64,${jresp['attachment']}`);
+                    document.getElementById('stdout').value = atou(jresp['stdout']);
+                    document.getElementById('stderr').value = atou(jresp['stderr']);
+                    purge_codemirror();
+                    var stdout = CodeMirror.fromTextArea(document.getElementById('stdout'), {
+                        lineNumbers: true
+                    });
+                    var stderr = CodeMirror.fromTextArea(document.getElementById('stderr'), {
+                        lineNumbers: true
+                    });
 
-            const url = `${baseURL}?${ComposeParams(params)}`
-            console.log(url)
-
-            fetch(url)
-                .then(function (resp) {
-                    if (resp.status == 200) { return resp.text() }
-                    console.log(resp)
-                }).then(text => {
-                    document.getElementById('target').setAttribute('src', `data:image/svg+xml;base64,${BASE64.encode(text)}`)
-                }).then(end => { fliploading() })
+                }).then(end => { fliploading() },reason=>{console.error(reason)})
 
 
         }
@@ -130,10 +153,36 @@
             Object.keys(obj).forEach((key) => {
                 let value = obj[key]
                 if (!(typeof value === 'undefined')) {
-                    params.push([key, BASE64.urlsafe_encode(value)].join('='))
+                    params.push([key, utoa(value)].join('='))
                 }
             })
             return params.join('&')
+        }
+
+        function postData(url, data) {
+            return fetch(url, {
+                body: JSON.stringify(data),
+                credentials: 'same-origin',
+                headers: {
+                    'content-type': 'application/json'
+                },
+                method: 'POST'
+            })
+        }
+        // 使用utf-8字符集进行base64编码
+        function utoa(str) {
+            return window.btoa(unescape(encodeURIComponent(str)));
+        }
+        // 使用utf-8字符集解析base64字符串 
+        function atou(str) {
+            return decodeURIComponent(escape(window.atob(str)));
+        }
+
+        function purge_codemirror(){
+            var elements = document.getElementsByClassName('CodeMirror cm-s-default');
+            while(elements.length > 0){
+                elements[0].parentNode.removeChild(elements[0]);
+            }
         }
 
         window.onload = update
